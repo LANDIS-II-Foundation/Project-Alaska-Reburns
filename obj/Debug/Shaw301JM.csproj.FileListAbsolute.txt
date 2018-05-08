@@ -1,0 +1,6 @@
+c:\users\jmcnabb\documents\visual studio 2015\Projects\Shaw301JM\Shaw301JM\bin\Debug\Shaw301JM.exe.config
+c:\users\jmcnabb\documents\visual studio 2015\Projects\Shaw301JM\Shaw301JM\bin\Debug\Shaw301JM.exe
+c:\users\jmcnabb\documents\visual studio 2015\Projects\Shaw301JM\Shaw301JM\bin\Debug\Shaw301JM.pdb
+c:\users\jmcnabb\documents\visual studio 2015\Projects\Shaw301JM\Shaw301JM\obj\Debug\Shaw301JM.csprojResolveAssemblyReference.cache
+c:\users\jmcnabb\documents\visual studio 2015\Projects\Shaw301JM\Shaw301JM\obj\Debug\Shaw301JM.exe
+c:\users\jmcnabb\documents\visual studio 2015\Projects\Shaw301JM\Shaw301JM\obj\Debug\Shaw301JM.pdb
