@@ -1,0 +1,6 @@
+c:\users\jmcnabb\documents\visual studio 2015\Projects\GIPL\GIPL\bin\Debug\GIPL.exe.config
+c:\users\jmcnabb\documents\visual studio 2015\Projects\GIPL\GIPL\bin\Debug\GIPL.exe
+c:\users\jmcnabb\documents\visual studio 2015\Projects\GIPL\GIPL\bin\Debug\GIPL.pdb
+c:\users\jmcnabb\documents\visual studio 2015\Projects\GIPL\GIPL\obj\Debug\GIPL.csprojResolveAssemblyReference.cache
+c:\users\jmcnabb\documents\visual studio 2015\Projects\GIPL\GIPL\obj\Debug\GIPL.exe
+c:\users\jmcnabb\documents\visual studio 2015\Projects\GIPL\GIPL\obj\Debug\GIPL.pdb
