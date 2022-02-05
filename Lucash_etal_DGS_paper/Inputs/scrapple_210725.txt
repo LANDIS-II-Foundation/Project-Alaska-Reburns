@@ -1,0 +1,156 @@
+LandisData  "SCRAPPLE"
+
+>>     Parameter                      Value
+>> ----------------------------       -------
+Timestep                            1
+
+AccidentalIgnitionsMap  ./AllZeros_DaltonArea3.tif
+LightningIgnitionsMap  ./Ignitions_ones_DaltonArea3.tif << currently populated with all 1s, may create a more varied probability surface later on-SW 
+RxIgnitionsMap  ./AllZeros_DaltonArea3.tif
+
+AccidentalSuppressionMap	./AllZeros_DaltonArea3.tif
+LightningSuppressionMap		./AllZeros_DaltonArea3.tif
+RxSuppressionMap		./AllZeros_DaltonArea3.tif
+
+GroundSlopeMap ./Slope_DaltonArea3_max33.tif
+UphillSlopeAzimuthMap  ./Aspect_DaltonArea3.tif
+
+>> Parameterized for small landscape by ML on 12/6/20
+LightningIgnitionsB0 -11.0  <<was -10.0 and 1.8 fires per year
+LightningIgnitionsB1 0.19
+AccidentalIgnitionsB0  0
+AccidentalIgnitionsB1  0
+
+IgnitionDistribution Poisson<< Poisson or ZeroInflatedPoisson
+
+>> A generic parameter, determines the fine-fuel scale from 0-1.0
+MaximumFineFuels 46440.88
+
+>> Prescribed Fire Parameters
+MaximumRxWindSpeed 0
+>> MaximumRxFireWeatherIndex 80.0  << Optional
+>> MinimumRxFireWeatherIndex 1.0   << Optional
+>> MaximumRxTemperature 35.0	<< Optional
+>> MinimumRxRelativeHumidity 22.0	<< Optional
+MaximumRxFireIntensity 0
+NumberRxAnnualFires 0
+NumberRxDailyFires 0
+FirstDayRxFires 2
+LastDayRxFires 300
+TargetRxSize 0
+>> RxZonesMap fire-zones.gis  << Optional
+
+>> Parameterized using dalton landscape perimeters, adjusted on 12/18/20 
+MaximumSpreadAreaB0	-171.44 
+MaximumSpreadAreaB1	33.28 <<FWI
+MaximumSpreadAreaB2	127.40 <<effective wind speed (edited) 
+
+>> Parameterized using dalton landscape perimeters, adjusted on 12/28/20 (Had issues fitting the function. These values are based on a GLM instead and had to set wind to 0 to avoid negative value. Needs revisiting post-ESA)
+>>SpreadProbabilityB0 -3.08 << Intercept was -2.26, then -2.5 (10,600 ha), then -3 (3768 ha), -5 was 4h (oops), -4 (88ha), -3.5 (532), -3.25 (100), -3.1 (800 ha), -3.05 (4464 ha)
+SpreadProbabilityB0 -2.34 << higher values more fire.  -4.51 was only 16ha/yr but aiming for 2000 ha
+SpreadProbabilityB1 0.06  << FWI
+SpreadProbabilityB2  0.33 << relativized fine fuels.
+SpreadProbabilityB3 0.01 << effective wind speed
+
+IntensityFactor:FineFuelPercent  .30
+IntensityFactor:LadderFuelMaxAge  250 << Setting to shrub longevity bc the conifers continue to have fuel low on the bole even when age is high, and shrubs won't age out of being latter fuels- SW
+IntensityFactor:LadderFuelBiomass  2500
+
+LadderFuelSpeciesList 
+BlackSpruce WhiteSpruce Tamarack Willow Alder ShrubBirch
+
+SuppressionMaxWindSpeed 100  << specifically for helicopter safety. This is the value from the example file, and I am just keeping as is, unless I learn otherwise in the future -SW
+SuppressionTable  << Currently must be entered in this exact order. I'm using the valuese listed in the user guide because they are described as a common pattern (though they are not universal, so could revisit at some point)-SW
+>>Type		FWI1	FWI2	Lo	Md	High-Effectiveness
+Accidental	20	40	5	65	95
+Lightning	20	40	5	65	95
+Rx		20	40	5	65	95
+
+DeadWoodTable << This is used to track snags. I don't plan to do any analysis of snags for ESA, so I am leaving this unpopulated for now. Will return to later - SW
+
+FireIntensityClass_1_DamageTable
+>> This table was populated by Shelby on 7/13/20 and is based on best guesses
+BlackSpruce 0  30  0.9
+BlackSpruce 30  75  0.8
+BlackSpruce 30  200  0.7
+WhiteSpruce 0  35  0.9
+WhiteSpruce 35  75  0.75
+WhiteSpruce 75  250  0.6
+PaperBirch 0  15  0.9
+PaperBirch 15  60  0.8
+PaperBirch 60  200  0.7
+QuakingAspen 0  10  0.9
+QuakingAspen 10  40  0.8
+QuakingAspen 40  100  0.7
+Tamarack 0  25  0.99
+Tamarack 25  180  0.9
+BalsamPoplar 0  10  0.9
+BalsamPoplar 10  60  0.7
+BalsamPoplar 60  200  0.5
+Alder 0  5  0.9
+Alder 5  250  0.8
+Willow 0  6  0.9
+Willow 6  100  0.85
+ShrubBirch 0  6  0.9
+ShrubBirch 6  100  0.85
+Sphagnum 0  350  0.6
+Feathermoss 0  350  0.8
+Turfmoss 0  350  0.7
+
+FireIntensityClass_2_DamageTable
+>> This table was populated by Shelby on 7/13/20 and is based on best guesses
+BlackSpruce 0  30  0.99
+BlackSpruce 30  75  0.85
+BlackSpruce 30  200  0.8
+WhiteSpruce 0  35  0.99
+WhiteSpruce 35  75  0.85
+WhiteSpruce 75  250  0.75
+PaperBirch 0  15  0.99
+PaperBirch 15  60  0.85
+PaperBirch 60  200  0.8
+QuakingAspen 0  10  0.99
+QuakingAspen 10  40  0.85
+QuakingAspen 40  100  0.8
+Tamarack 0  25  0.99
+Tamarack 25  180  0.99
+BalsamPoplar 0  10  0.99
+BalsamPoplar 10  60  0.8
+BalsamPoplar 60  200  0.7
+Alder 0  5  0.99
+Alder 5  250  0.9
+Willow 0  6  0.99
+Willow 6  100  0.9
+ShrubBirch 0  6  0.99
+ShrubBirch 6  100  0.99
+Sphagnum 0  350  0.7
+Feathermoss 0  350  0.9
+Turfmoss 0  350  0.8
+
+FireIntensityClass_3_DamageTable
+>> This table was populated by Shelby on 7/13/20 and is based on best guesses
+BlackSpruce 0  30  0.99
+BlackSpruce 30  75  0.9
+BlackSpruce 30  200  0.9
+WhiteSpruce 0  35  0.99
+WhiteSpruce 35  75  0.9
+WhiteSpruce 75  250  0.9
+PaperBirch 0  15  0.99
+PaperBirch 15  60  0.9
+PaperBirch 60  200  0.9
+QuakingAspen 0  10  0.99
+QuakingAspen 10  40  0.9
+QuakingAspen 40  100  0.9
+Tamarack 0  25  0.99
+Tamarack 25  180  0.99
+BalsamPoplar 0  10  0.99
+BalsamPoplar 10  60  0.9
+BalsamPoplar 60  200  0.9
+Alder 0  5  0.99
+Alder 5  250  0.99
+Willow 0  6  0.99
+Willow 6  100  0.99
+ShrubBirch 0  6  0.99
+ShrubBirch 6  100  0.99
+Sphagnum 0  350  0.99
+Feathermoss 0  350  0.99
+Turfmoss 0  350  0.99

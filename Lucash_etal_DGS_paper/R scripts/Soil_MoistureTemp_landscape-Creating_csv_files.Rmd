@@ -1,0 +1,578 @@
+---
+title: "Examine landscape-scale DGS outputs"
+author: "Adrienne Marshall and Melissa Lucash"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    
+    This script was the first step in analyzing the ST and SM results for the DGS paper. It pulls in
+    all the relevant output files and then summarizes ALT and VWC at an annual timestep in two csv files.
+    One is at the landscape scale, the other by THU.
+---
+
+Note: Cache is set to true in the setup chunk because this can take a little while to run. 
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = F, warning = F, message = F, fig.width = 14, cache = T, fig.height = 16, autodep = T)
+library(tidyverse)
+library(knitr)
+library(data.table)
+library(lubridate)
+library(pals)
+library(raster)
+library(rgdal)
+library(sf)
+library(tools)
+#library(plyr)
+#library(dplyr) #this interacts with tidyverse
+
+source("add_datetime.R")
+
+#upperModel_dir <-"C:/Users/mlucash/Alaska_Reburns_Project_Sims/"
+upperModel_dir <-"D:/Lucash/ResearchAssistantProfessor/Alaska_Reburns_Project/Sims_DGS_methods_paper/Jan_2022_Sims/"
+
+model_dir <-paste0(upperModel_dir, "Calib_Landscape_Scrapple_220119E/")
+#model_dir <-paste0(upperModel_dir, "Calib_Landscape_Scrapple_220119_CC_E/")
+
+replicate<-"Historical_220119_repE"
+scenario_type<-"Historical"
+SHAW_offsetYear<-(-20) #Historical
+actualyear1 <- 1970
+
+#replicate<-"ClimateChange_220119_repE"
+#scenario_type<-"ClimateChange"
+#SHAW_offsetYear<-1 #CC
+#actualyear1 <- 1991
+
+GIPL_offsetYear<-SHAW_offsetYear + 1
+commonyear1 <- 1990
+output_dir<-paste0(upperModel_dir, "Output_Sims_DGS_methods_paper/")
+
+```
+
+First, read in all the historical data and summarize the annual growing season VWC 
+
+```{r plot liquid}
+
+thus <- read_csv(paste0(model_dir, "SHAW/interiorAK_THUs-Burn-new2-adjSlope.csv")) %>% 
+  slice(-1:-2) %>% 
+  filter(!is.na(THUName))
+
+#this is the code to use for the final THU file
+# thus <- read_csv(paste0(model_dir, "Inputs/interiorAK_THUs-final.csv")) %>% 
+#   slice(-1:-2) %>% 
+#   filter(!is.na(THUName))
+# liquid_files_all <- list.files(paste0(model_dir, "Outputs/SHAW"), pattern = "liquid", recursive = T, full = T)
+
+
+# Only read in outputs for which there was a THU defined and occurred on the landscape.
+liquid_files_all <- list.files(paste0(model_dir, "SHAW/Outputs"), pattern = "liquid", recursive = T, full = T)
+liquid_files <- (liquid_files_all[sapply(liquid_files_all, file.size) >100])
+
+liquid_dat <- map(liquid_files, function(x){
+  fread(x) %>% 
+    slice(185:n()) %>% # get rid of burn-in
+    mutate(thu = basename(dirname(x))) %>% 
+    mutate(thu = str_replace(thu, "Log_", ""))
+}) %>% 
+  bind_rows() %>% 
+  add_datetime() %>% 
+  mutate(date = date(date_time)) %>% 
+  dplyr::select(-date_time) %>% 
+  pivot_longer(-c("date", "thu"), names_to = "depth", values_to = "VWC") 
+
+# Identify start date for later use. 
+start_sim <- liquid_dat$date[1]
+
+soil_moi_trends <- liquid_dat %>% 
+  filter(!is.na(VWC),  depth <= 0.5) %>%  # calculate VWC in only the top 50cm
+  mutate(year = year(date), month = month(date), day=day(date))  %>% 
+  filter(month %in% 5:9) #Only the growing season (May to Sept)
+
+daily_VWC <- soil_moi_trends %>% 
+      group_by(year, month, day, thu) %>% 
+      summarise(VWC = mean(VWC)) #if summarize doesn't work then detach(plyr), This is a SUM in Adrienne's script but that's for each depth.
+monthly_VWC <- daily_VWC %>% 
+      group_by(year, month, thu) %>% 
+      summarise(VWC = mean(VWC)) #if summarize doesn't work then detach(plyr)
+annual_VWC <- monthly_VWC %>% 
+      group_by(year, thu) %>% 
+      summarise(VWC = mean(VWC))%>%
+      mutate(common_year = year-SHAW_offsetYear) %>%
+     # mutate(common_year = year+20) %>%
+      mutate(thu = as.character(thu))
+
+#Creating an annual file for VWC by THU
+annual_VWC_premerge <- monthly_VWC %>% 
+      group_by(year, thu) %>% 
+      summarise(VWC = mean(VWC))%>%
+      mutate(common_year = year-SHAW_offsetYear) %>%
+      mutate(thu = as.numeric(thu))
+annual_VWC_premerge$Scenario<-rep(scenario_type, nrow(annual_VWC_premerge))
+annual_VWC_premerge$Scenario_replicate<-rep(replicate, nrow(annual_VWC_premerge))
+
+thus_premerge<-thus
+thus_premerge$THUNumber<-as.numeric(thus_premerge$THUNumber)
+
+annual_VWC_final<- left_join(annual_VWC_premerge, thus_premerge[,c("THUNumber","THUName", "VegetationType1")], by = c("thu" = "THUNumber"))
+
+
+```
+
+This loads in all the reprojected THU maps so you can summarize the results by THU.
+
+# Map THUs
+
+```{r map of THUs, fig.width = 14, fig.height = 16, include = F, eval = T}
+thu_map_files_all <- list.files(paste0(model_dir, "DGS_rp/"), pattern = "THU", recursive = T, full = T)
+# thu_map_files_all <- list.files(paste0(model_dir, "Outputs/DGS/"), pattern = "THU", recursive = T, full = T)
+thu_map_files <-  Filter(function(x) grepl(".img$", x), thu_map_files_all)
+
+# Read in map files.
+thu_map_df <- map(thu_map_files, function(x){
+  y <- raster(x)  %>% 
+    as.data.frame(xy = T) %>% 
+    pivot_longer(-c("x", "y"), names_to = "Simyear", values_to = "thu")%>% 
+    mutate(Simyear = as.numeric(str_remove(Simyear, "THU\\.")),
+           thu = as.character(thu))
+  })%>% 
+  bind_rows() %>% 
+  left_join(thus %>% 
+              mutate(thu = as.character(THUNumber)) %>% 
+              dplyr::select(thu, THUName))
+
+# Modify for plotting. 
+# Veg is the only thing that changes, so will just want to plot veg eventually. 
+thu_map_df <- thu_map_df %>% 
+  separate(THUName, into = c("veg", "climate_zone", "slope", "aspect"), remove = F)
+
+thu_counts <- thu_map_df %>% 
+  group_by(Simyear, thu) %>% 
+  summarise(thu_count = n()) %>% 
+  filter(thu > 0)  %>% 
+  mutate(common_year = commonyear1 + Simyear - 1) %>%
+  mutate(actual_year = actualyear1 + Simyear - 1) %>%
+  mutate(thu = as.character(thu), common_year=as.double(common_year)) 
+
+thu_counts_year <- thu_counts %>% 
+  group_by(common_year) %>% 
+  summarise(total_thu_count = sum(thu_count))
+
+annual_thus<- thu_counts %>% 
+  left_join(annual_VWC, by = c('common_year'='common_year', 'thu'='thu'))%>%
+   mutate(scenario=as.character(scenario_type))
+
+annual_thus_landscape<- annual_thus %>% 
+  mutate(VWC_landscape = VWC * (thu_count/93371)) #There are always 32 THUS in each year and the total number of cells is constant (aka 93371).
+
+final_shaw_landscape<- annual_thus_landscape %>% 
+  group_by(common_year) %>%
+  summarise(VWC_landscape_mean = sum(VWC_landscape)) %>%
+  mutate(scenario=as.character(scenario_type))
+
+annual_thus_landscape_premerge<-annual_thus_landscape
+annual_thus_landscape_premerge$thu<-as.numeric(annual_thus_landscape_premerge$thu)
+
+final_shaw_thu<- left_join(annual_VWC_final, annual_thus_landscape_premerge[,c("common_year", "actual_year", "thu", "thu_count")], by = c("common_year"="common_year", "thu" ="thu")) 
+
+
+```
+
+# GIPL, active layer depth for each THU and then the entire landscape
+
+```{r active layer depth in GIPL, eval = T}
+# Function to calculate freeze/thaw depths as described by Dmitry.
+
+# Inputs: df should be a data frame with (at least) columns named date, depth, and temp
+# Threshold is the freezing temp threshold.
+
+calc_freezing <- function(df, current_year = 1971, threshold = -0.05){  #Historical, current year is start year plus 1
+#calc_freezing <- function(df, current_year = 1992, threshold = -0.05){   #climate change starts at 1992
+  
+  df2 <- df %>% filter(year(date) %in% c(current_year, current_year-1))
+ 
+# 0) Check if a layer of permafrost exists - any depth that never thaws over this and the preceding year
+  max_temps <- df2 %>% 
+    group_by(depth) %>% 
+    summarise(max = max(temp)) 
+  
+  coldest_max <- min(max_temps$max) # identify the coldest maximum temperature. 
+  
+  # if the coldest maximum temperature is less than the threshold, then we have permafrost. 
+  if(coldest_max < threshold){pf_exists <- T} else {pf_exists <- F}
+  
+  # Now subset to only the present year for the rest of the calculations. 
+  df3 <- df2 %>% 
+    filter(year(date) == current_year)
+  
+# 1) If permafrost does not exist, compute how many vertical grid cell go through the phase change (i.e. back and forth of -0.05C). 
+  # The deepest vertical cell will mark the seasonal freezing layer thickness. Exit
+  if(pf_exists == F){
+    sft <- df3 %>%  # sft stands for seasonally freezing thickness. 
+      group_by(depth) %>% # analyze each depth separately
+      summarise_at("temp", .funs = c("min", "max")) %>% # get min and max temp for each depth
+      filter(min < threshold & max > threshold) %>%  # get cases where the min temp is less than thrshold; max is greater
+      arrange(desc(depth)) %>% # order from deepest to shallowest
+      slice(1) %>% # get the deepest depth only
+      pull(depth)
+    
+    talik_exists <- F # no talik if no permafrost - these are placeholders for results. 
+    talik_thickness <- F 
+    talik_max <- F
+    talik_min <- F
+  } else {sft <- NA}# end case for which permafrost does not exist. 
+  
+# 2) If permafrost exists, check if a talik - a layer of thawed material (T>-0.05C) exists through the entire year.
+  if(pf_exists == T){
+    
+    # Make a data frame of min and max temps at each depth. 
+    minmax_temps <- df3 %>%
+      group_by(depth) %>% 
+      summarise_at("temp", .funs = c("min", "max"))
+    
+    # Depth to permafrost is the shallowest depth that never thaws.
+    depth_to_pf <- minmax_temps %>% 
+      filter(max < threshold) %>% 
+      arrange(depth) %>% 
+      slice(1) %>% pull(depth)
+    
+    # Talik would be a case below the shallowest annually frozen layer, that warms above freezing.
+    talik_df <- minmax_temps %>% 
+      filter(depth < depth_to_pf, depth > 0.02) %>% # make sure we're not dealing with a super shallow layer
+      filter(min > threshold)
+    
+    if(nrow(talik_df) > 0){talik_exists <- T} else {talik_exists <- F}
+    
+    # 3) If talik exists (I assume a single layer of such thawed material. 
+    # In reality, under some very special circumstances, there could be freezing/thawing-talik-frozen-talik-permafrost), 
+    # then please record thickness, upper and lower boundaries of this thawed layer #
+    # (or if you'd like to have a challenge: record the upper boundary of the shallowest thaw layer 
+    # and lower boundary of the deepest thaw layer). # note - I did not do this, we could if desired. 
+    #The upper boundary will give you the seasonally freezing layer, 
+    # while the lower one provides depth to the top of permafrost. Exit
+    if(talik_exists == T){
+      talik_max <- max(talik_df$depth)
+      talik_min <- min(talik_df$depth)
+      talik_thickness <-talik_max - talik_min
+    } # end if talik exists
+    
+    # 4) if talik does not exists, you have a seasonally thawed layer and the current algorithm could be applied. Exit
+    if(talik_exists == F){
+      talik_thickness <- NA
+      talik_max <- NA
+      talik_min <- NA
+      
+      # Calculate seasonally thawed thickness. 
+      max_stt <- df3 %>%
+        filter(temp > threshold) %>%
+        summarise(max_stt = max(depth)) # maximum seasonally thawed thickness
+    }
+    
+  } # end case where permafrost exists. 
+  
+  if(pf_exists == F | talik_exists == T){max_stt <- NA} # if no permafrost or there's a talik, max seasonally thawed thickness is na
+  
+  # Data structure for outputs. 
+  ans <- data.frame(pf_exists = pf_exists,
+                    talik_exists = talik_exists, 
+                    sft = sft, 
+                    talik_max = talik_max,
+                    talik_min = talik_min, 
+                    talik_thickness = talik_thickness,
+                    max_stt = max_stt) 
+  
+  return(ans)
+} # End function
+
+
+
+gipl_out_all <- list.files(paste0(model_dir, "GIPL/Outputs/"), full = T)
+#gipl_out_all <- list.files(paste0(model_dir, "Outputs/GIPL/"), full = T)
+gipl_out <- (gipl_out_all[sapply(gipl_out_all, file.size) >1000])
+gipl_temp_files <- str_subset(gipl_out, "Snow", negate = T)
+
+gipl_temp <- map(gipl_temp_files, function(x){
+  y <- fread(x, header = T)
+  names(y)[1:2] <- c("year", "day_of_month")
+  y <- y[185:nrow(y),] # get rid of burn-in
+  
+  day1 <- start_sim - days(yday(start_sim) - 1) # determine new start point. 
+  
+  if(nrow(y) > 0){
+    y <- y %>% 
+      mutate(day_index = 1:nrow(.)) %>% 
+      mutate(date = day1 + days(day_index - 1)) %>% 
+      dplyr::select(-day_index, -day_of_month, -year) %>% 
+      pivot_longer(-date, names_to = "depth", values_to = "temp")  %>% 
+      mutate(depth = round(as.numeric(depth), 2)) %>% 
+      mutate(THUNumber = str_c(unlist(str_extract_all(basename(x), "\\d")), collapse = ""))
+  } else {
+    y <- NULL
+  }
+  
+}) %>% 
+  bind_rows()
+
+# Original code
+# gipl_temp2 <-  gipl_temp %>% 
+#   #filter(depth %in% c(0.1, 0.5, 1, 6)) %>%  #in previous versions I filtered depths. modified 6/7/21
+#   left_join(thus %>% 
+#               dplyr::select(THUNumber, THUName) %>% 
+#               mutate(THUNumber = as.character(THUNumber)), 
+#             by = "THUNumber") %>% 
+#   separate(THUName, into = c("veg_type", "climate_zone", "slope", "aspect")) 
+
+
+# Calculate depth to active layer for each climate zone and year
+# alt = maximum depth at which temp > -0.05. If max depth == Inf, then everything's frozen. If max depth == max modeled depth (6), then nothing frozen. 
+
+# alt_by_THU <- gipl_temp2 %>% 
+#   filter(temp > -0.050) %>% 
+#   mutate(year = year(date)) %>% 
+#   group_by(year, THUNumber) %>% 
+#   summarise(max_alt = max(depth))%>%
+#   mutate(actualyears = year-GIPL_offsetYear) %>%
+#   mutate(actualyears=as.double(actualyears)) 
+
+
+# To experiment with this, try changing the THU number and year. (1991-2040)-----------
+# The next few lines will make plots of temperature and output the results to console 
+# test <- gipl_temp %>% 
+#   mutate(year = year(date)) %>% 
+#   filter(THUNumber == 80)
+# 
+# test_year <- 1993
+# 
+# ggplot(test %>% filter(year == test_year), aes(x = date, y = temp, color = as.factor(depth))) + 
+#   geom_line(show.legend = F)
+# 
+# calc_freezing(df = test, current_year = test_year)
+
+# Code to calculate these results over all THUs/years: ----------
+# picks up after line 120 above (bind_rows())
+# This is a little slow now that it's written this way - there's probably a faster way but I haven't thought through it. 
+# On my old tired computer, it takes about 5 minutes :/
+freezing_df <- gipl_temp %>% 
+  split(.$THUNumber) %>% 
+  map_df(function(df){
+    years <- (year(min(df$date)+1)):year(max(df$date))
+    
+    # Iterate over years 
+    ans <- map_df(years, function(year1){
+      calc_freezing(df, current_year = year1) %>% 
+        mutate(THUNumber = df$THUNumber[1],
+               year = year1)
+    })
+    return(ans)
+  }) # finish mapping over THUs
+
+
+# annual_thus_ALT<- thu_counts %>% 
+#   left_join(alt_by_THU, by = c('actualyears'='actualyears', 'thu'='THUNumber'))
+
+annual_thus_ALT<- freezing_df %>% 
+  left_join(thu_counts, by = c('year'='actual_year', 'THUNumber'='thu'))
+
+annual_thu_sft_landscape<- annual_thus_ALT %>% 
+  mutate(sft_max_landscape = sft * (thu_count/93371))# again, # of THUS per year and # of cells is constant over time.Used to be alt
+
+final_thu_ALT_landscape<- annual_thu_sft_landscape %>% 
+  group_by(common_year) %>% 
+  summarise(sft_mean = mean(sft, na.rm = TRUE))%>%
+   mutate(scenario=as.character(scenario_type))%>%
+   mutate(scenario_rep=as.character(replicate))
+
+joined_matrix<- final_thu_ALT_landscape %>% 
+  left_join(final_shaw_landscape, by = c('common_year'='common_year'))%>% 
+  dplyr::select(-c(scenario.y))
+
+final_matrix<-joined_matrix[,c(3,4,1,5,2)]
+
+colnames(final_matrix)<-c("Scenario","Scenario_replicate", "ActualYear", "mean_VWC_top_50cm_landscape", "seasonallyfreezingthickness_landscape")
+write.csv(final_matrix, file=paste0(output_dir,replicate, ".csv"))
+
+annual_thus_ALT_premerge<-annual_thus_ALT
+annual_thus_ALT_premerge$THUNumber<-as.numeric(annual_thus_ALT_premerge$THUNumber)
+
+# annual_THU<-left_join(final_shaw_thu, annual_thus_ALT_premerge[,c("actualyears","thu","max_alt")], by=c("common_year"="actualyears", "thu"="thu"))
+
+annual_THU<-left_join(annual_thus_ALT_premerge, final_shaw_thu[, -c(1, 10)], by=c("common_year"="common_year", "THUNumber"="thu"))
+
+write.csv(annual_THU, file=paste0(output_dir,replicate, "_byTHU.csv"))
+
+# This added soil depth at 3 m to the _byTHU csv file
+
+depth_interest<-c(3.00) # soil temp at 3.0 m
+
+depth_3m <- gipl_temp %>% 
+  filter(depth%in%depth_interest) %>%
+  mutate(year=year(date)) %>%
+  mutate(CommonYear=year - SHAW_offsetYear) %>%
+  group_by(CommonYear) %>% 
+  summarise(ST_mean_3m = mean(temp, na.rm = TRUE))
+
+final_matrix_joinedST<-left_join(final_matrix, depth_3m, by=c("ActualYear"="CommonYear"))
+write.csv(final_matrix_joinedST, file=paste0(output_dir,replicate, ".csv"))
+
+
+depth_3m_THU <- gipl_temp %>% 
+  filter(depth%in%depth_interest) %>%
+  mutate(year=year(date)) %>%
+  mutate(CommonYear=year - SHAW_offsetYear) %>%
+  group_by(CommonYear, THUNumber) %>% 
+  summarise(ST_mean_3m = mean(temp, na.rm = TRUE))%>%
+  mutate(THUNumber = as.numeric(THUNumber)) 
+
+annual_THU_STMean<-left_join(annual_THU, depth_3m_THU, by=c("common_year"="CommonYear", "THUNumber"="THUNumber"))
+
+write.csv(annual_THU_STMean, file=paste0(output_dir,replicate, "_byTHU.csv"))
+
+```
+
+
+```{r active layer depth in GIPL, eval = F}
+#generating a soil temp file for Dmitry
+depths_interest<-c(0.1, 0.2, 0.3, 0.5, 1,2,3,4.5, 6,7.92, 9.83,11.75, 13.66666667, 15.58333333,17.5,19.41666667, 21.33,30.92, 50.08, 73.08)
+
+test_temps <- gipl_temp %>% 
+  mutate(year=year(date)) %>%
+  mutate(month=month(date)) %>%
+#filter(depth%in%depths_interest)%>%
+  filter(year%in%1971)
+write.csv(test_temps, file=paste0(output_dir,replicate, "GIPLTemps_MoreDepthsbyTHU.csv"))
+
+
+# This added soil dept at 0.5 cm
+#depths_interest<-c(0.3, 0.5, 1,3,4.5, 7.92, 9.83,11.75, 13.66666667, 15.58333333, 21.33,50.08, 73.08)
+depths_interest<-c(4.5) #young hardwoods N and S in CR 9 and 10
+#thu_interest<-c(36,40,56,60,35,39,55,59) #young hardwoods N and S in CR 9 and 10
+#years_interest<-c(1990,1991) #also might be helpful
+
+test_temps <- gipl_temp %>% 
+  mutate(year=year(date)) %>%
+  mutate(month=month(date)) %>%
+filter(depth%in%depths_interest)%>%
+  filter(THUNumber%in%thu_interest)
+
+annual_THU<-left_join(annual_thus_ALT_premerge, final_shaw_thu[, -c(1, 10)], by=c("common_year"="common_year", "THUNumber"="thu"))
+
+write.csv(annual_THU, file=paste0(output_dir,replicate, "_byTHU.csv"))
+
+test_temps <- gipl_temp %>% 
+  mutate(year=year(date)) %>%
+  mutate(month=month(date)) %>%
+filter(depth%in%depths_interest)%>%
+  filter(THUNumber%in%thu_interest)
+
+write.csv(test_temps, file=paste0(output_dir,replicate, "_GIPLTemps_OldYoungHardwoods.csv"))
+
+test_SM <- liquid_dat %>% 
+  mutate(year=year(date)) %>%
+  mutate(month=month(date)) %>%
+  mutate(depth = as.numeric(depth)) %>%
+  filter(depth%in%depths_interest) %>%
+  filter(thu%in%thu_interest)
+head(test_SM)
+write.csv(test_SM, file=paste0(output_dir,replicate, "_SHAWSoilMoist_OldYoungHardwoods.csv"))
+
+```
+
+Plots that Adrienne created to check the permafrost cals.
+
+```{r}
+# Exploratory plots. -------------------------
+n_thus <- length(unique(annual_THU$thu))
+# Percent of THUs with permafrost and with taliks: 
+freezing_df %>% 
+  group_by(year) %>% 
+  #summarise(pf = 100*sum(pf_exists == T & max_stt < 6)/n(),
+  summarise(pf = 100*sum(pf_exists == T)/n(),
+  talik = 100*sum(talik_exists == T, na.rm = T)/n()) %>% 
+  ungroup() %>% 
+  pivot_longer(-year, names_to = "variable") %>% 
+  ggplot(aes(x = year, y = value, color = variable)) + 
+  geom_line() + 
+  labs(y = "Percent of THUs with permafrost or taliks") 
+
+# Plot the seasonally thawed thickness of those with permafrost. 
+# There are very few of these because most of them have taliks. 
+annual_THU %>% 
+  filter(pf_exists == T) %>% 
+  ggplot(aes(x = year, y = max_stt*-1, color = as.factor(THUNumber))) + 
+  geom_line(show.legend = F)
+ 
+
+# Plot the seasonally freezing thickness of those without permafrost
+# The -6 values are from the first year of thawing; we could remove those if desired. 
+annual_THU %>% 
+  filter(pf_exists == F) %>% 
+  ggplot(aes(x = year, y = sft*-1, color = as.factor(THUNumber))) + 
+  geom_line(show.legend = F)
+
+
+```
+```{r climate summaries that I'm not using right now, eval = F}
+
+climate_csv<-read.csv (paste0 (model_dir, "/DGS-succession-monthly-log.csv"))
+climate_csv$common_year<-rep(climate_csv$Time + actualyear1-2)
+
+all_data_ribbon<-ddply(climate_csv, .(common_year), summarize,
+                             sum_ppt = sum(ppt),
+                             SD_ppt = sd(ppt),
+                             SE_ppt = sd(ppt)/sqrt(length(ppt)), 
+                             mean_temp = mean(airtemp),
+                             SD_temp = sd(airtemp),
+                             SE_temp = sd(airtemp)/sqrt(length(airtemp)))
+
+#This is the ribbon graph of scenarios at time 0
+plt.cols.short <- c("grey30", "darkorange") #Number corresponds to scenarios
+legend_title<-'Scenarios'
+
+plot<-ggplot(all_data_ribbon, aes(x=(common_year), y=sum_ppt)) +
+  geom_line(aes(x=(common_year), y=sum_ppt))+
+  #ylim(0, 300)+
+  #geom_ribbon(aes(ymin=sum_ppt-SD_ppt, ymax=sum_ppt+SD_ppt, fill=scenario_name), alpha=0.25, show.legend = FALSE)+ 
+  scale_color_manual(values = plt.cols.short) +
+  scale_fill_manual(values = plt.cols.short)+
+  labs(x =NULL, y = "precipitation (cm)", colour="Climate Scenarios")+
+  theme_classic()
+
+plot+theme(axis.title.y = element_text(margin=margin(0,0,0,20)),
+           legend.position = "right") +
+            scale_x_continuous(breaks=seq(1990, 2040, 10))
+
+plot<-ggplot(all_data_ribbon, aes(x=(common_year), y=mean_temp)) +
+  geom_line(aes(x=(common_year), y=mean_temp))+
+  scale_color_manual(values = plt.cols.short) +
+  scale_fill_manual(values = plt.cols.short)+
+  labs(x =NULL, y = "Temp (oC)", colour="Climate Scenarios")+
+  theme_classic()
+
+plot+theme(axis.title.y = element_text(margin=margin(0,0,0,20)),
+           legend.position = "right") +
+  scale_x_continuous(breaks=seq(1990, 2040, 10))
+
+monthly_ribbon<-ddply(climate_csv, .(Month), summarize,
+                             sum_ppt = sum(ppt),
+                             SD_ppt = sd(ppt),
+                             SE_ppt = sd(ppt)/sqrt(length(ppt)), 
+                             mean_temp = mean(airtemp),
+                             SD_temp = sd(airtemp),
+                             SE_temp = sd(airtemp)/sqrt(length(airtemp)))
+
+plot<-ggplot(monthly_ribbon, aes(x=(Month), y=mean_temp)) +
+  geom_line(aes(x=(Month), y=mean_temp))+
+  scale_color_manual(values = plt.cols.short) +
+  scale_fill_manual(values = plt.cols.short)+
+  labs(x =NULL, y = "Monthly tTemp (oC)", colour="Climate Scenarios")+
+  theme_classic()
+
+plot+theme(axis.title.y = element_text(margin=margin(0,0,0,20)),
+           legend.position = "right") 
+
+```
+
+

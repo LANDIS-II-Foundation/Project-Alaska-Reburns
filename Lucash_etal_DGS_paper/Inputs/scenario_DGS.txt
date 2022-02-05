@@ -1,0 +1,29 @@
+LandisData  Scenario
+
+Duration  50
+
+Species         AlaskaSpecies_031521.txt
+Ecoregions      ClimateRegions.txt
+EcoregionsMap   ClimateMap_10regions_DaltonArea3.tif
+
+CellLength  200 << meters
+
+
+>> Succession Extension     Initialization File
+>> --------------------     -------------------
+"DGS Succession"	  DGS_Succession_AKinput_210315.txt
+
+>> Disturbance Extensions   Initialization File
+>> ----------------------   -------------------
+   "SCRAPPLE"		    scrapple_210725.txt
+
+>>   DisturbancesRandomOrder  yes  << optional parameter; default = no
+
+
+>> Other Extensions         Initialization File
+>> ----------------         -------------------
+  "Output Biomass Reclass"	   output_BiomassReclass_2classes.txt
+  "Output Biomass"	    output-biomass.txt
+>>  "Output Biomass Community"	    output-biomass-community.txt
+
+RandomNumberSeed  2,917,306,493

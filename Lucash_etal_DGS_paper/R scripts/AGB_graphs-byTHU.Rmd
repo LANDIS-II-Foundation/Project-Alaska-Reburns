@@ -1,0 +1,150 @@
+---
+title: "Examine landscape-scale DGS outputs"
+author: "Melissa Lucash"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    
+    This script pulls in the total biomass and THU maps 
+    and then summarizes biomass per THU at an annual timestep in a csv file.
+    Need to reproject the maps first and only use the total biomass maps
+---
+
+Note: Cache is set to true in the setup chunk because this can take a little while to run. 
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = F, warning = F, message = F, fig.width = 14, cache = T, fig.height = 16, autodep = T)
+library(ggplot2)
+library(raster)
+library(rgdal)
+library(tidyverse)
+library(plyr)
+library(png)
+library(dplyr) #this interacts with tidyverse
+library(grid)
+library(gridExtra)
+source("add_datetime.R")
+
+model_dir <-"D:/Lucash/ResearchAssistantProfessor/Alaska_Reburns_Project/Sims_DGS_methods_paper/Jan_2022_Sims/"
+
+historical_sim_dir <-paste0(model_dir,"/Calib_Landscape_Scrapple_220119A/")
+
+scenario_type<-"Historical"
+offsetYear<-(-20) #Historical
+
+scenario_type<-"ClimateChange"
+offsetYear<-1 #CC
+
+year1 <- 1990
+date<-Sys.Date()
+
+Scenario_LUT <- read.csv (paste0(model_dir,"Scenarios_DGS_Paper.csv"))
+full_scen_list<-(Scenario_LUT[c(26:30),1]) #historical
+full_scen_list<-(Scenario_LUT[c(1:5),1]) #climate change
+
+length_sim<-50  #50 year sim
+
+output_dir<-paste0(model_dir, "Output_Sims_DGS_methods_paper/ByTHU/")
+```
+
+First, read in all the biomass and THU maps, then summarize them
+
+```{r plot liquid}
+
+biomass_values_time0<-as.vector(raster(paste0(historical_sim_dir,"biomass_rp/TotalBiomass-0.img")))#species raster
+
+full_matrix<-NULL
+  for (t in 1:length(full_scen_list)){#for every scenario
+  each_scenario<-full_scen_list[t]
+  biomass_dir<-paste(model_dir,each_scenario,"/biomass_rp/", sep="") #directory of reprojected biomass raster
+  thu_dir<-paste(model_dir,each_scenario,"/DGS_rp/", sep="") #directory of reprojected biomass raster
+  all_biomass_files<-list.files(biomass_dir) #total biomass file.
+  total_biomass_maps <-  Filter(function(x) grepl(".img$", x), all_biomass_files) #remove all the xml files
+  all_thu_files<-list.files(thu_dir) #all the thu maps
+  all_thu_maps <-  Filter(function(x) grepl(".img$", x), all_thu_files) #remove all the xml files
+  
+  #biomass_matrix<-NULL
+  for (s in 1:length_sim){#for every time step
+    each_thu_year<-all_thu_maps[s]
+    each_biomass_year<-total_biomass_maps[s+1]
+    thu_values<-as.vector(raster(paste(thu_dir,each_thu_year,sep="")))#thu raster 
+    biomass_values<-as.vector(raster(paste(biomass_dir,each_biomass_year,sep="")))#biomass raster       
+    biomass_row<-cbind.data.frame(each_scenario,s, thu_values, biomass_values_time0, biomass_values)#cbind all the maps together. 
+    full_matrix<-rbind.data.frame(full_matrix, biomass_row)#cbind all the maps together. 
+  }
+  }#end of species loop  
+  colnames(full_matrix)<-c("Scenario", "Time","THU","Biomass_Time0", "Biomass")
+  
+  # ggplot(full_matrix, aes(x=(Time), y=Biomass, group=THU))+
+  # geom_line(aes(x=(Time), y=Biomass, colour=THU))+
+  # theme_classic()+ylab("AGB") + theme(legend.position = "right")
+  
+  thus <- read_csv(paste0(historical_sim_dir, "SHAW/interiorAK_THUs-Burn-new2-adjSlope.csv")) %>% 
+  slice(-1:-2) %>% 
+  filter(!is.na(THUName))
+  
+  biomass_matrix_joined<-left_join(full_matrix, thus[c(1,4,5)], by=c("THU"="THUNumber"))
+  biomass_matrix_joined$ActualYear<-biomass_matrix_joined$Time + year1-1
+  biomass_matrix_activeCells<-subset(biomass_matrix_joined, biomass_matrix_joined$Biomass_Time0>0)
+
+
+  all_data_ddply<-ddply(biomass_matrix_activeCells, .(ActualYear, VegetationType1), summarize,
+                       mean_AGB = mean(Biomass)*0.47,
+                       SD_AGB = sd(Biomass)*0.47,
+                       SE_AGB = sd(Biomass)*0.47/sqrt(length(Biomass))*0.47)
+  
+  all_data_means<-subset(all_data_ddply,all_data_ddply$VegetationType1!="NA")
+  all_data_means$Scenario<-rep(scenario_type, times=nrow(all_data_means))
+
+write.csv(all_data_means, file=paste0(output_dir,scenario_type, "-AGB_by_THU.csv"))
+
+########### Now make the graphs from the csv files.   ####################
+
+Historical<-read.csv(file=paste0(output_dir,"Historical-AGB_by_THU.csv"))
+ClimateChange<-read.csv(file=paste0(output_dir,"ClimateChange-AGB_by_THU.csv"))
+
+all_data_scenarios<-rbind.data.frame(Historical, ClimateChange)
+
+all_data_scenarios$Scenario <- factor(all_data_scenarios$Scenario, levels = c("Historical", "ClimateChange"))
+
+plt.cols.short <- c("grey30", "darkorange") #Number corresponds to scenarios
+legend_title<-'Climate Scenarios'
+
+png_name<-paste0(output_dir, "AG_Carbon_byTHU", date, ".png", sep="")
+#png(filename=png_name, width = 5, height = 4, units = 'in', res = 300)
+
+carbon<-ggplot(all_data_scenarios, aes(x=(ActualYear), y=mean_AGB/0.47, group=Scenario)) +
+  geom_line(aes(x=(ActualYear), y=mean_AGB/0.47, colour=Scenario))+
+  geom_ribbon(aes(ymin=(mean_AGB/0.47)-(SD_AGB/0.47), ymax=(mean_AGB/0.47)+(SD_AGB/0.47), colour=Scenario), alpha=0.25, show.legend = FALSE)+   scale_color_manual(values = plt.cols.short) +
+  scale_fill_manual(values = plt.cols.short)+
+  #theme_classic()+xlab(NULL)+ylab("Aboveground biomass (g/m2)") + theme(legend.position = "right")+
+  theme_classic()+xlab(NULL)+ylab(expression(Aboveground~carbon~(gC/m^2))) + theme(legend.position = "none")+
+  scale_x_continuous(breaks=seq(1990, 2040, 10), limits=c(1990, 2042))+
+  scale_y_continuous(breaks=seq(0, 12000, 2000), limits=c(0, 12000))+
+  facet_wrap(~ VegetationType1)
+ggsave(filename=png_name, plot = carbon, width = 5,  height = 4, units = "in",  dpi = 300)
+
+dev.off()
+png_name<-paste(output_dir, "AG_Biomass_byTHU", date, ".png", sep="")
+#png_name<-"AG_Carbon_byTHU.png"
+#png(filename=png_name, width = 5, height = 4, units = 'in', res = 300)
+
+AGB<-ggplot(all_data_scenarios, aes(x=(ActualYear), y=mean_AGB, group=Scenario)) +
+  geom_line(aes(x=(ActualYear), y=mean_AGB, colour=Scenario))+
+  geom_ribbon(aes(ymin=(ifelse(mean_AGB-SD_AGB<0,0, mean_AGB-SD_AGB)), ymax=mean_AGB+SD_AGB, colour=Scenario), alpha=0.25, show.legend = FALSE)+    scale_color_manual(values = plt.cols.short) +
+  scale_fill_manual(values = plt.cols.short)+
+  theme_classic()+xlab(NULL)+ylab("Aboveground biomass (g/m2)") + theme(legend.position = "none")+
+  #theme_classic()+xlab(NULL)+ylab(expression(Aboveground~carbon~(gC/m^2))) + theme(legend.position = "none")+
+  scale_x_continuous(breaks=seq(1990, 2040, 10), limits=c(1990,2042))+
+  scale_y_continuous(breaks=seq(0,8000, 2000), limits=c(0, 8000))+
+  facet_wrap(~ VegetationType1)
+ggsave(filename=png_name, plot = AGB, width = 5,  height = 4, units = "in",  dpi = 300)
+
+dev.off()
+
+
+```
+
