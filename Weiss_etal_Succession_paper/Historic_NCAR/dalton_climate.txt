@@ -1,0 +1,17 @@
+LandisData "Climate Config"				
+		
+ClimateTimeSeries			Daily_RandomYears
+ClimateFile				../ncar_climate_formatted_AK_V4_historical_dripfix1_precipaddedback.csv
+ClimateFileFormat			Daily_Temp-K_Precip-mmDay
+
+SpinUpClimateTimeSeries			Daily_RandomYears
+SpinUpClimateFile			../ncar_climate_formatted_AK_V4_historical_dripfix1_precipaddedback.csv
+SpinUpClimateFileFormat			Daily_Temp-K_Precip-mmDay
+
+UsingFireClimate			yes
+FineFuelMoistureCode			88
+DuffMoistureCode			59
+DroughtCode				136
+FirstDayFire				90  <<code to April 1
+LastDayFire 				320 << code to Nov 1
+AtmosphericPressure				100

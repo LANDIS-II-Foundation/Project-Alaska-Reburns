@@ -1,0 +1,88 @@
+LandisData  "SCRAPPLE"
+
+>>     Parameter                      Value
+>> ----------------------------       -------
+Timestep                            1
+
+Species_CSV_File	../Dalton_Landscape/Species_CSV_File_011622_firetol_decrthick.csv
+
+AccidentalIgnitionsMap  ../Dalton_Landscape/AllZeros_061021.tif
+LightningIgnitionsMap  ../Dalton_Landscape/AllOnes_061021.tif	<< currently populated with all 1s, may create a more varied probability surface later on-SW 
+RxIgnitionsMap  ../Dalton_Landscape/AllZeros_061021.tif
+
+AccidentalSuppressionMap	../Dalton_Landscape/AllZeros_061021.tif
+LightningSuppressionMap		../Dalton_Landscape/AllZeros_061021.tif
+RxSuppressionMap		../Dalton_Landscape/AllZeros_061021.tif
+
+GroundSlopeMap ../Dalton_Landscape/AK_Slope_below32_80422.tif
+UphillSlopeAzimuthMap  ../Dalton_Landscape/AK_Uphill_Aspect_Map_062920.tif
+ClayMap ../Dalton_Landscape/Clay_052720.tif
+
+>> Parameterized for full 11mil ha landscape by Shelby in August 2021
+LightningIgnitionsB0	-2.2565
+LightningIgnitionsB1	0.0549
+AccidentalIgnitionsB0  0 << set to 0 since not including
+AccidentalIgnitionsB1  0 << set to 0 since not including
+IgnitionDistribution ZeroInflatedPoisson 
+LightningIgnitionsBinomialB0	3.9114
+LightningIgnitionsBinomialB1	0.0153
+AccidentalIgnitionsBinomialB0	0
+AccidentalIgnitionsBinomialB1	0
+
+>> A generic parameter, determines the fine-fuel scale from 0-1.0
+MaximumFineFuels 349
+
+>> Prescribed Fire Parameters
+MaximumRxWindSpeed 0
+>> MaximumRxFireWeatherIndex 80.0  << Optional
+>> MinimumRxFireWeatherIndex 1.0   << Optional
+>> MaximumRxTemperature 35.0	<< Optional
+>> MinimumRxRelativeHumidity 22.0	<< Optional
+MaximumRxFireIntensity 0
+NumberRxAnnualFires 0
+NumberRxDailyFires 0
+FirstDayRxFires 2
+LastDayRxFires 300
+TargetRxSize 0
+>> RxZonesMap fire-zones.gis  << Optional
+
+MaximumSpreadAreaB0	1303.38 <<as of 11/19/21
+MaximumSpreadAreaB1	0 <<FWI; as of 11/19/21
+MaximumSpreadAreaB2	12.74 <<effective wind speed; as of 11/19/21
+
+SpreadProbabilityB0 -0.5 << Intercept; too much spread with -0.03, trying -0.1
+SpreadProbabilityB1 0.0083477  << FWI; as of 11/19/21
+SpreadProbabilityB2  0.2408656 << relativized fine fuels; as of 11/19/21 
+SpreadProbabilityB3 0 << effective wind speed; as of 11/19/21
+
+>> Intercept ; fit on 12/12/21- testing differences in results with including windspeed or not. (Included here)
+SiteMortalityB0  0.0017    
+>> The parameter fit for site level clay % in Soil.
+SiteMortalityB1  0
+>> The parameter fit for site level previous years annual ET. 
+SiteMortalityB2  0  
+>> The parameter fit for site level Effective Windspeed. 
+SiteMortalityB3	-0.00000590151    
+>>The parameter fit for site level Climatic Water Deficit (PET-AET). 
+SiteMortalityB4	0  
+>> The parameter fit for fine fuels (excluding ladder fuels).
+SiteMortalityB5 -0.00000005176  
+>> The parameter fit for ladder fuels.
+SiteMortalityB6 0  
+
+>> Intercept
+CohortMortalityB0 2.19116302
+>> The parameter fit for the relationship between bark thickness and cohort mortality.
+CohortMortalityB1 -4.46690781
+>> The parameter fit for the relationship between site mortality and cohort mortality.
+CohortMortalityB2 0.00095130
+
+LadderFuelMaxAge 250
+
+LadderFuelSpeciesList 
+BlackSpruce WhiteSpruce Tamarack
+
+SuppressionMaxWindSpeed 40 << placeholder for now
+Suppression_CSV_File	../Dalton_Landscape/Suppression_CSV_File.csv
+
+DeadWoodTable

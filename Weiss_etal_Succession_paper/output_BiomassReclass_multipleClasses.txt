@@ -1,0 +1,24 @@
+LandisData  "Output Biomass Reclass"
+
+Timestep   1
+
+
+ReclassMaps
+
+>> Map Name    Forest Type    Species
+>> --------    -------------  -------
+
+reclass1 -> Conifers  BlackSpruce WhiteSpruce Tamarack 
+            Hardwoods PaperBirch QuakingAspen BalsamPoplar Willow Alder
+
+reclass2 -> BlackSpruce  BlackSpruce WhiteSpruce Sphagnum Feathermoss 
+            BirchAspen   PaperBirch QuakingAspen BalsamPoplar Willow Alder ShrubBirch Tamarack Feathermoss Turfmoss
+           >> Mixed	 Willow Alder Tamarack Sphagnum Feathermoss Turfmoss
+           
+
+                
+
+   
+
+
+MapFileNames   Reclass/biomass-reclass-{reclass-map-name}-{timestep}.img
