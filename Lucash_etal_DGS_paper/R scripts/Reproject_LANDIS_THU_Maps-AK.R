@@ -1,5 +1,6 @@
+# R script to reprojecting all the THU maps so they can be used for future analysis.
+
 library(raster)
-library(rgdal)
 
 SetLandisCRS <- function (from, to) {
   extent(from) <- extent(to)
@@ -7,37 +8,38 @@ SetLandisCRS <- function (from, to) {
   return(from)
 }
 
+time_step<-seq(0, 50,by=1) 
+time_step<-c(1, 50) 
 
-sim_dir <-"D:/Lucash/ResearchAssistantProfessor/Alaska_Reburns_Project/Sims_DGS_methods_paper/Jan_2022_Sims/"
+sim_dir<-("E:/Lucash/ResearchAssistantProfessor/Alaska_Reburns_Project/Sims_DGS_methods_paper/")  #New computer external HD
+sim_dir<-("C:/Users/mlucash/Alaska_Reburns_Project_Sims/")  #New computer external HD
 setwd(sim_dir)
 
-example_scenario<-c("Calib_Landscape_Scrapple_220119_CC_A")
+scen_list<-c("Calib_Landscape_Scrapple_230302_CC_A")
 
-climate_map<-(paste0(sim_dir, example_scenario, "/ClimateMap_10regions_DaltonArea3.tif")) #landis input file (ecoregion map)
+climate_map<-(paste0(sim_dir, scen_list, "/ClimateMap_10regions_DaltonArea3.tif")) #landis input file (ecoregion map)
 spatial_reference <- raster(climate_map) #rasterize the input file.
 
-Scenario_LUT <- read.csv ("Scenarios_DGS_Paper.csv")
-scen_list<-(Scenario_LUT[c(1:5, 26:30),1]) #ran 6-25
+Scenario_LUT <- read.csv (paste0(model_dir,"Scenarios_DGS_Paper.csv"))
+full_scen_list<-(Scenario_LUT[c(31:40),1]) #historical + CC
 
-for (t in 1:length(scen_list)){
-  scenario<-scen_list[t]
-DGS_biomass_dir <- paste(sim_dir, scenario, "/DGS/", sep="") #directory of biomass raster
-#all_sp_biomass_files <- list.files(sp_biomass_dir) #all the species biomass files +total biomass file.
-thu_map_files <- list.files(paste0(DGS_biomass_dir), pattern = "THU", recursive = T, full = T)
 
-for (s in 1:length(thu_map_files)){ #for each thu...
-  thu_LANDIS<-thu_map_files[s]
-  thu_LANDIS_eachRaster<-raster(thu_LANDIS)
-  thu_LANDIS_name<-paste0("THU-",s,".img")
-  dir.create(file.path(paste0(sim_dir, scenario, "/DGS_rp/")), showWarnings = FALSE)
-  new_thu_dir <- paste(sim_dir, scenario, "/DGS_rp/", sep="") #directory of biomass raster
-  thu_LANDIS_newName<-(paste(new_thu_dir,thu_LANDIS_name,sep=""))
+for (t in 1:length(full_scen_list)){
+  scenario<-full_scen_list[t]
+sp_biomass_dir <- paste(sim_dir, scenario, "/DGS/", sep="") #directory of biomass raster
+all_sp_biomass_files <- list.files(sp_biomass_dir) #all the species biomass files +total biomass file.
 
-projectedLandisOutputRaster <- SetLandisCRS(thu_LANDIS_eachRaster, spatial_reference)
-writeRaster(projectedLandisOutputRaster, thu_LANDIS_newName,datatype='INT4S', overwrite=TRUE)
+for (s in 1:length(all_sp_biomass_files)){ #for each species...
+  #sp_biomass_dir <- paste(sim_dir, scenario, "/biomass/", sep="") #directory of biomass raster
+  #all_sp_biomass_files <- list.files(sp_biomass_dir) #all the species biomass files +total biomass file.
+    spp_LANDIS<-all_sp_biomass_files[s]
+  spp_LANDIS_eachRaster<-raster(paste(sim_dir,scenario,"/DGS/", spp_LANDIS,sep=""))
+  spp_LANDIS_newName<-(paste(sim_dir,scenario,"/DGS_rp/", spp_LANDIS,sep=""))
+
+projectedLandisOutputRaster <- SetLandisCRS(spp_LANDIS_eachRaster, spatial_reference)
+writeRaster(projectedLandisOutputRaster, spp_LANDIS_newName,datatype='INT4S', overwrite=TRUE)
 }
 }
 rm(t)
 rm(s)
   print("done")
-plot(projectedLandisOutputRaster)

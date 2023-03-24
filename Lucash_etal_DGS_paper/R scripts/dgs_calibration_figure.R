@@ -8,7 +8,8 @@ library(pals)
 
 project_dir <- "C:/Users/mlucash/Dropbox (University of Oregon)/NSF ReburnsAK LANDIS Results/NSF ReburnsAK LANDIS Results"
 #project_dir <- "~/Dropbox/NSF ReburnsAK LANDIS Results (1)"
-sites <- c("SmithLake2", "UP1A", "US-Rpf")
+sites <- c("SmithLake2", "UP1A", "US-Rpf") #original order.
+#sites <- c("US-Rpf", "UP1A", "SmithLake2")
 
 site_dirs <- list.files(project_dir, pattern = str_c(sites, collapse = "|"),
                         full = T)
@@ -161,6 +162,9 @@ plot_years <- map(site_info, function(x){
 }) %>% bind_rows()
 plot_dat <- inner_join(all_dat, plot_years)
 
+plot_dat$site<-factor(plot_dat$site, levels = c("US-Rpf", "UP1A","SmithLake2"))
+
+plot_colors<-c("red3", "orange", "#DDCC77", "#117733", "#88CCEE", "#332288")
 # Plot. 
 moi_plot <- plot_dat %>% 
   filter(variable == "VWC") %>% 
@@ -169,12 +173,14 @@ moi_plot <- plot_dat %>%
              linetype = case)) + 
   geom_line(show.legend = T) + 
   scale_linetype_manual(values = c(2, 1)) + 
-  scale_color_manual(values = tol(6)[6:1]) + 
+  scale_color_manual(values = plot_colors) + 
   scale_x_date(expand = c(0, 0)) + 
   facet_wrap(~ site, ncol = 1, scales = "free", strip.position = "left") + 
   theme_few() + 
+  theme(legend.text=element_text(size=12), legend.title=element_text(size=13))+
   labs(x = "", y = expression(theta[VWC]), color = "depth", linetype = "") + 
-  theme(strip.placement = "outside") 
+  theme(strip.placement = "outside")+
+  guides(colour = guide_legend(override.aes = list(size=0.8), title="Depth (m)"))
 
 moi_plot
 
@@ -194,12 +200,14 @@ temp_plot <- plot_dat %>%
   geom_line(show.legend = T) + 
   scale_linetype_manual(values = c(2, 1)) + 
   geom_hline(yintercept = 0, linetype = 2, color = "grey50") + 
-  scale_color_manual(values = tol(6)[6:1]) + 
+  scale_color_manual(values = plot_colors) + 
   scale_x_date(expand = c(0, 0)) + 
   facet_wrap(~site, ncol = 1, scales = "free", strip.position = "left") + 
   labs(x = "", y = "Soil temperature (°C)", color = "Depth (m)", linetype = "") +
   theme_few() + 
-  theme(strip.placement = "outside") 
+  theme(strip.placement = "outside") +
+  theme(legend.text=element_text(size=12), legend.title=element_text(size=13))+
+  guides(colour = guide_legend(override.aes = list(size=0.8), title="Depth (m)"))
 
 temp_plot
 

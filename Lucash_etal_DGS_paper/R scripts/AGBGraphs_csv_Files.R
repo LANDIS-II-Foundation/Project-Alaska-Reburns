@@ -1,5 +1,4 @@
-#This is the R script that I used after creating the csv files in:
-# This script reads in all the csv files and graphs them.
+#This is the R script that I used to create graphs of AGB and SOC from the csv files.
 
 library(raster)
 library(ggplot2)
@@ -63,6 +62,8 @@ all_data_ribbon$AGB_SD_Carbon<-all_data_ribbon$SD_AGB*0.47
 
 all_data_ribbon$Scenario <- factor(all_data_ribbon$Scenario, levels = c("Historical", "ClimateChange"))
 
+write.csv(all_data_ribbon, "AGB_SoilC.csv")
+
 plt.cols.short <- c("grey30", "darkorange") #Number corresponds to scenarios
 legend_title<-'Climate Scenarios'
 
@@ -111,7 +112,7 @@ SoilCplot <- ggplot(all_data_ribbon, aes(x=(ActualYear), y=mean_SOC, group=Scena
   geom_line(aes(x=(ActualYear), y=mean_SOC, colour=Scenario))+
   geom_ribbon(aes(ymin=mean_SOC-SD_SOC, ymax=mean_SOC+SD_SOC, fill=Scenario), alpha=0.25, show.legend = FALSE)+ 
   scale_color_manual(name = "Scenario", labels = c("Baseline", "Climate Change"), values = plt.cols.short) +
-  theme_classic()+xlab(NULL)+ylab(expression(Soil~C~(g/m^2))) + theme(legend.position = "right")+
+  theme_classic()+xlab("Years")+ylab(expression(Soil~C~(g/m^2))) + theme(legend.position = "right")+
   scale_fill_manual(values = plt.cols.short)+
   scale_x_continuous(breaks=seq(1990, 2040, 10)) + scale_y_continuous(breaks=seq(0.0, 12000, 2000), limits=c(0,12000))
 SoilCplot + theme(legend.position = c(0.8, 0.55)) + #this adjusts the legend location.
